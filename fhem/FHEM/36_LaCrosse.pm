@@ -168,7 +168,7 @@ sub LaCrosse_Parse($$) {
   my ($hash, $msg) = @_;
   my $name = $hash->{NAME};
 
-  my( @bytes, $addr, $typeNumber, $typeName, $battery_new, $battery_low, $error, $type, $channel, $temperature, $humidity, $windDirection, $windSpeed, $windGust, $rain, $pressure, $gas1, $gas2, $lux, $version, $voltage, $debug );
+  my( @bytes, $addr, $typeNumber, $typeName, $battery_new, $battery_low, $error, $type, $channel, $temperature, $humidity, $windDirection, $windSpeed, $windGust, $rain, $pressure, $gas1, $gas2, $uvi, $lux, $version, $voltage, $debug );
   $temperature = 0xFFFF;
   $humidity = 0xFF;
   $windDirection = 0xFFFF;
@@ -178,6 +178,7 @@ sub LaCrosse_Parse($$) {
   $pressure = 0xFFFF;
   $gas1 = 0xFFFFFF;
   $gas2 = 0xFFFFFF;
+  $uvi = 0xFF;
   $lux = 0xFFFFFF;
   $version = 0xFF;
   $voltage = 0xFF;
@@ -241,6 +242,9 @@ sub LaCrosse_Parse($$) {
     }
     elsif($typeNumber == 5) {
       $typeName = "UniversalSensor";
+    }
+    elsif($typeNumber == 8) {
+      $typeName = "FineOffset";
     }
     else {
       $typeName = "unknown";
@@ -319,6 +323,31 @@ sub LaCrosse_Parse($$) {
       if (@bytes > 29 && $bytes[27] != 0xFF) {
         $debug = $bytes[27] * 65536 + $bytes[28] * 256 + $bytes[29];
       }
+    }
+    
+    if($typeNumber == 8) {
+
+      Log3 $name, 3, "$name: Some debug info: (11)-->$bytes[11]";
+      Log3 $name, 3, "$name: Some debug info: (12)-->$bytes[12]";
+      Log3 $name, 3, "$name: Some debug info: (13)-->$bytes[13]";
+      Log3 $name, 3, "$name: Some debug info: (14)-->$bytes[14]";
+      Log3 $name, 3, "$name: Some debug info: (15)-->$bytes[15]";
+      Log3 $name, 3, "$name: Some debug info: (16)-->$bytes[16]";
+      Log3 $name, 3, "$name: Some debug info: (17)-->$bytes[17]";
+      Log3 $name, 3, "$name: Some debug info: (18)-->$bytes[18]";
+      Log3 $name, 3, "$name: Some debug info: (19)-->$bytes[19]";
+      Log3 $name, 3, "$name: Some debug info: (20)-->$bytes[20]";
+
+    	if(!($bytes[13] == 0xFF)) {        
+      	$uvi = ($bytes[13]) / 10;
+        Log3 $name, 3, "$name: Some debug info: (uvi)-->$uvi";
+    	}
+         
+	    if(!($bytes[14] == 0xFF && $bytes[15] == 0xFF)) {
+	      $lux = ($bytes[14] * 256 + $bytes[15]) / 10;
+        Log3 $name, 3, "$name: Some debug info: (light)-->$lux";
+	    }
+  
     }
   
   }
@@ -545,7 +574,7 @@ sub LaCrosse_Parse($$) {
       readingsBulkUpdate($rhash, "gas2", $gas2 );
     }
   
-    if (($typeNumber == 4 || $typeNumber == 5) && $lux != 0xFFFFFF) {
+    if (($typeNumber == 4 || $typeNumber == 5 || $typeNumber == 8) && $lux != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "lux", $lux );
     }
   
@@ -557,6 +586,10 @@ sub LaCrosse_Parse($$) {
       readingsBulkUpdate($rhash, "voltage", $voltage );
     }
     
+    if ($typeNumber == 8 && $uvi != 0xFF) {
+      readingsBulkUpdate($rhash, "uvi", $uvi );
+    }
+      
     if ($typeNumber > 1 && $debug != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "debug", $debug );
     }
