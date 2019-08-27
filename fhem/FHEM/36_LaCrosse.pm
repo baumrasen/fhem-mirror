@@ -294,9 +294,12 @@ sub LaCrosse_Parse($$) {
       $windGust = ($bytes[11] * 256 + $bytes[12]) / 10;
     }
     
-    if(@bytes > 15 && !($bytes[14] == 0xFF && $bytes[15] == 0xFF)) {
-      $pressure = $bytes[14] * 256 + $bytes[15];
-      $pressure /= 10.0 if $pressure > 5000;
+    if($typeNumber != 8)
+    {
+      if(@bytes > 15 && !($bytes[14] == 0xFF && $bytes[15] == 0xFF)) {
+        $pressure = $bytes[14] * 256 + $bytes[15];
+        $pressure /= 10.0 if $pressure > 5000;
+      }
     }
   
     if(@bytes > 18 && !($bytes[16] == 0xFF && $bytes[17] == 0xFF && $bytes[18] == 0xFF)) {
@@ -327,6 +330,7 @@ sub LaCrosse_Parse($$) {
     
     if($typeNumber == 8) {
 
+      Log3 $name, 3, "$name: Some debug info: (bytes)-->@bytes";
       Log3 $name, 3, "$name: Some debug info: (11)-->$bytes[11]";
       Log3 $name, 3, "$name: Some debug info: (12)-->$bytes[12]";
       Log3 $name, 3, "$name: Some debug info: (13)-->$bytes[13]";
@@ -344,12 +348,10 @@ sub LaCrosse_Parse($$) {
     	}
          
 	    if(!($bytes[14] == 0xFF && $bytes[15] == 0xFF)) {
-	      $lux = ($bytes[14] * 256 + $bytes[15]) / 10;
+	      $lux = ($bytes[14] * 256 + $bytes[15]);
         Log3 $name, 3, "$name: Some debug info: (light)-->$lux";
 	    }
-  
     }
-  
   }
   else {
     DoTrigger($name, "UNKNOWNCODE $msg");
@@ -562,15 +564,15 @@ sub LaCrosse_Parse($$) {
       readingsBulkUpdate($rhash, "windDirectionText", $windDirectionText );
     }
 
-    if ($typeNumber > 1 && $pressure != 0xFFFF) {
+    if ($typeNumber != 8 && $typeNumber > 1 && $pressure != 0xFFFF) {
       readingsBulkUpdate($rhash, "pressure", $pressure );
     }
   
-    if ($typeNumber > 1  && $gas1 != 0xFFFFFF) {
+    if ($typeNumber != 8 && $typeNumber > 1  && $gas1 != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "gas1", $gas1 );
     }
   
-    if ($typeNumber > 1 && $gas2 != 0xFFFFFF) {
+    if ($typeNumber != 8 && $typeNumber > 1 && $gas2 != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "gas2", $gas2 );
     }
   
