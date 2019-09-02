@@ -168,7 +168,34 @@ sub LaCrosse_Parse($$) {
   my ($hash, $msg) = @_;
   my $name = $hash->{NAME};
 
-  my( @bytes, $addr, $typeNumber, $typeName, $battery_new, $battery_low, $error, $type, $channel, $temperature, $humidity, $windDirection, $windSpeed, $windGust, $rain, $rain_factor, $pressure, $gas1, $gas2, $uvi, $uv_index, @uvi_upper, $uv, $lux, $version, $voltage, $debug );
+  my( @bytes,
+      $addr,
+      $typeNumber,
+      $typeName,
+      $battery_new,
+      $battery_low,
+      $error,
+      $type,
+      $channel,
+      $temperature,
+      $humidity,
+      $windDirection,
+      $windSpeed,
+      $windGust,
+      $rain,
+      $rain_factor,
+      $pressure,
+      $gas1,
+      $gas2,
+      $uv,
+      $uvi,
+      $uv_index,
+      @uvi_upper,      
+      $lux,
+      $version,
+      $voltage,
+      $debug );
+
   $temperature = 0xFFFF;
   $humidity = 0xFF;
   $windDirection = 0xFFFF;
@@ -245,7 +272,7 @@ sub LaCrosse_Parse($$) {
     elsif($typeNumber == 5) {
       $typeName = "UniversalSensor";
     }
-    elsif($typeNumber == 8) {
+    elsif($typeNumber == 6) {
       $typeName = "FineOffset";
     }
     else {
@@ -282,7 +309,7 @@ sub LaCrosse_Parse($$) {
       }
     }
 
-    if($typeNumber == 8) {
+    if($typeNumber == 6) {
       $rain_factor = 0.1;
     }
 
@@ -300,7 +327,7 @@ sub LaCrosse_Parse($$) {
       $windGust = ($bytes[11] * 256 + $bytes[12]) / 10;
     }
     
-    if($typeNumber != 8)
+    if($typeNumber != 6)
     {
       if(@bytes > 15 && !($bytes[14] == 0xFF && $bytes[15] == 0xFF)) {
         $pressure = $bytes[14] * 256 + $bytes[15];
@@ -334,16 +361,7 @@ sub LaCrosse_Parse($$) {
       }
     }
     
-    if($typeNumber == 8) {
-
-      Log3 $name, 3, "$name: Some debug info: (bytes)-->@bytes";
-      Log3 $name, 3, "$name: Some debug info: (11)-->$bytes[11]";
-      Log3 $name, 3, "$name: Some debug info: (12)-->$bytes[12]";
-      Log3 $name, 3, "$name: Some debug info: (13)-->$bytes[13]";
-      Log3 $name, 3, "$name: Some debug info: (14)-->$bytes[14]";
-      Log3 $name, 3, "$name: Some debug info: (15)-->$bytes[15]";
-      Log3 $name, 3, "$name: Some debug info: (16)-->$bytes[16]";
-      Log3 $name, 3, "$name: Some debug info: (17)-->$bytes[17]";
+    if($typeNumber == 6) {
 
     	if(!($bytes[14] == 0xFF)) {        
       	$uv = ($bytes[14]);
@@ -351,19 +369,14 @@ sub LaCrosse_Parse($$) {
         @uvi_upper = (432, 851, 1210, 1570, 2017, 2450, 2761, 3100, 3512, 3918, 4277, 4650, 5029);
         $uv_index = 0;
         $uvi = $uv_index;
-        Log3 $name, 3, "$name: Some debug info: (uv_index)-->$uv_index - @uvi_upper[$uv_index] - $uv";
-        while (($uv_index < 13) && (@uvi_upper[$uv_index] < $uv)){
-          Log3 $name, 3, "$name: Some debug info: (uv_index)-->$uv_index - @uvi_upper[$uv_index] - $uv";
+        while (($uv_index < 13) && (@uvi_upper[$uv_index] < $uv)){          
           $uvi = $uv_index;
           ++$uv_index;
         }
-        Log3 $name, 3, "$name: Some debug info: (uv)-->$uv";
-        Log3 $name, 3, "$name: Some debug info: (uvi)-->$uvi";
     	}
          
 	    if(!($bytes[15] == 0xFF)) {
 	      $lux = ($bytes[15] * 256 * 256 + $bytes[16] * 256 + $bytes[17])/10;
-        Log3 $name, 3, "$name: Some debug info: (light)-->$lux";
 	    }
     }
   }
@@ -578,27 +591,27 @@ sub LaCrosse_Parse($$) {
       readingsBulkUpdate($rhash, "windDirectionText", $windDirectionText );
     }
 
-    if ($typeNumber != 8 && $typeNumber > 1 && $pressure != 0xFFFF) {
+    if ($typeNumber != 6 && $typeNumber > 1 && $pressure != 0xFFFF) {
       readingsBulkUpdate($rhash, "pressure", $pressure );
     }
   
-    if ($typeNumber != 8 && $typeNumber > 1  && $gas1 != 0xFFFFFF) {
+    if ($typeNumber != 6 && $typeNumber > 1  && $gas1 != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "gas1", $gas1 );
     }
   
-    if ($typeNumber != 8 && $typeNumber > 1 && $gas2 != 0xFFFFFF) {
+    if ($typeNumber != 6 && $typeNumber > 1 && $gas2 != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "gas2", $gas2 );
     }
   
-    if (($typeNumber == 4 || $typeNumber == 5 || $typeNumber == 8) && $lux != 0xFFFFFF) {
+    if (($typeNumber == 4 || $typeNumber == 5 || $typeNumber == 6) && $lux != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "lux", $lux );
     }
 
-    if ($typeNumber == 8 && $uv != 0xFF) {
+    if ($typeNumber == 6 && $uv != 0xFF) {
       readingsBulkUpdate($rhash, "uv", $uv );
     }
   
-    if ($typeNumber == 8 && $uvi != 0xFF) {
+    if ($typeNumber == 6 && $uvi != 0xFF) {
       readingsBulkUpdate($rhash, "uvi", $uvi );
     }
 
