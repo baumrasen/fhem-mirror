@@ -10,7 +10,6 @@ use SetExtensions;
 
 sub LaCrosse_Parse($$);
 
-
 sub LaCrosse_Initialize($) {
   my ($hash) = @_;
 
@@ -26,6 +25,7 @@ sub LaCrosse_Initialize($) {
     ." ignore:1,0"
     ." doAverage:1,0"
     ." doDewpoint:1,0"
+    ." changeModelTypeTo"
     ." filterThreshold"
     ." resolution"
     ." $readingFnAttributes";
@@ -187,6 +187,9 @@ sub LaCrosse_Parse($$) {
       $pressure,
       $gas1,
       $gas2,
+      $model,
+      $rain_cup_count,
+      $wind_speed_factor,
       $uv,
       $uvi,
       $uv_index,
@@ -194,7 +197,7 @@ sub LaCrosse_Parse($$) {
       $lux,
       $version,
       $voltage,
-      $debug );
+      $debug);
 
   $temperature = 0xFFFF;
   $humidity = 0xFF;
@@ -213,6 +216,36 @@ sub LaCrosse_Parse($$) {
   $debug = 0xFFFFFF;
   $error = 0;
   $rain_factor = 0.5; #default rain factor
+  $rain_cup_count = 1; #default rain_cup_count
+  $wind_speed_factor = 1; #default wind_speed_factor
+
+  # if(defined($attr{$hash}) &&
+  #   defined($attr{$hash}{"changeModelTypeTo"}) &&
+  #   !($attr{$hash}{"changeModelTypeTo"} eq "")) {
+  #     $model = $attr{$hash}{"changeModelTypeTo"};
+  #   }
+
+  #$model2 = AttrVal($defs{$d}{NAME}, "changeModelTypeTo", 0);
+  $model = uc(AttrVal($name, "changeModelTypeTo", 0));
+
+  Log3 $name, 5, "$name: model (1) used is WH$model";
+
+    if($model == 0) {
+      # default behaviour
+      $wind_speed_factor = 1;
+      $rain_cup_count = 1;
+    }
+    elsif($model == 24) {
+      $wind_speed_factor = 1.12;
+      $rain_cup_count = 0.3;
+    }
+    elsif($model == 65) {
+      $wind_speed_factor = 0.51;
+      $rain_cup_count = 0.254;
+    }
+
+    Log3 $name, 5, "$name: wind_speed_factor used is $wind_speed_factor";
+    Log3 $name, 5, "$name: rain_cup_count used is $rain_cup_count";
 
   if( $msg =~ m/^OK 9/ ) {
     # Temperature sensor - Format:
@@ -314,17 +347,17 @@ sub LaCrosse_Parse($$) {
     }
 
     if($bytes[5] != 0xFF) {
-      $rain = ($bytes[5]*256 + $bytes[6]) * $rain_factor;
+      $rain = ($bytes[5]*256 + $bytes[6]) * $rain_factor * $rain_cup_count;
     }
 
     if($bytes[7] != 0xFF) {
       $windDirection = ($bytes[7]*256 + $bytes[8]) / 10;
     }
     if($bytes[9] != 0xFF) {
-      $windSpeed = ($bytes[9] * 256 + $bytes[10]) / 10;
+      $windSpeed = ($bytes[9] * 256 + $bytes[10]) / 10 * $wind_speed_factor;
     }
     if($bytes[11] != 0xFF) {
-      $windGust = ($bytes[11] * 256 + $bytes[12]) / 10;
+      $windGust = ($bytes[11] * 256 + $bytes[12]) / 10 * $wind_speed_factor;
     }
     
     if($typeNumber != 6)
@@ -389,6 +422,9 @@ sub LaCrosse_Parse($$) {
   my $raddr = $addr;
   my $rhash = $modules{LaCrosse}{defptr}{$raddr};
   my $rname = $rhash?$rhash->{NAME}:$raddr;
+
+  $model = $rhash->{model};
+  Log3 $name, 5, "$name: model (2) used is WH$model";
 
   return "" if( IsIgnored($rname) );
 
@@ -688,11 +724,15 @@ sub LaCrosse_Parse($$) {
     <li>humidity (%rH)</li>
     <li>Wind speed (m/s), gust (m/s) and direction (degree)</li>
     <li>Rain (mm)</li>
+    <li>UV Index [for FineOffset WH24A and WH65B only]</li>
+    <li>Light (lux) [for FineOffset WH24A and WH65B only]</li>
   </ul><br>
 
   <a name="LaCrosse_Attr"></a>
   <b>Attributes</b>
   <ul>
+    <li>changeModelTypeTo<br>
+      used for FineOffset devices! use <b>24</b>[default] for WH24A or <b>65</b> for WH65B to change the calculation factors</li>
     <li>doAverage<br>
       use an average of the last 4 values for temperature and humidity readings</li>
     <li>doDewpoint<br>
