@@ -10,6 +10,7 @@ use SetExtensions;
 
 sub LaCrosse_Parse($$);
 
+
 sub LaCrosse_Initialize($) {
   my ($hash) = @_;
 
@@ -665,7 +666,7 @@ sub LaCrosse_Parse($$) {
     if ($typeNumber = 5 && $voltage != 0xFF) {
       readingsBulkUpdate($rhash, "voltage", $voltage );
     }
-      
+    
     if ($typeNumber > 1 && $debug != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "debug", $debug );
     }
@@ -739,7 +740,7 @@ sub LaCrosse_Parse($$) {
   <b>Attributes</b>
   <ul>
     <li>changeModelTypeTo<br>
-      used for FineOffset devices! use <b>24</b>[default] for WH24A or <b>65</b> for WH65B to change the calculation factors</li>
+      need to be set for FineOffset devices! The calculation for wind and rain will be wrong if the value is not set! use <b>WH24A</b> or <b>WH65B</b> to choose the right calculation factors</li>
     <li>doAverage<br>
       use an average of the last 4 values for temperature and humidity readings</li>
     <li>doDewpoint<br>
