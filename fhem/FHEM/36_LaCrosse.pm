@@ -666,7 +666,7 @@ sub LaCrosse_Parse($$) {
     if ($typeNumber = 5 && $voltage != 0xFF) {
       readingsBulkUpdate($rhash, "voltage", $voltage );
     }
-    
+  
     if ($typeNumber > 1 && $debug != 0xFFFFFF) {
       readingsBulkUpdate($rhash, "debug", $debug );
     }
