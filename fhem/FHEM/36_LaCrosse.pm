@@ -187,8 +187,7 @@ sub LaCrosse_Parse($$) {
       $pressure,
       $gas1,
       $gas2,
-      $model,
-      $rain_cup_count,
+      $rain_cup_factor,
       $wind_speed_factor,
       $uv,
       $uvi,
@@ -216,36 +215,8 @@ sub LaCrosse_Parse($$) {
   $debug = 0xFFFFFF;
   $error = 0;
   $rain_factor = 0.5; #default rain factor
-  $rain_cup_count = 1; #default rain_cup_count
+  $rain_cup_factor = 1; #default rain_cup_count
   $wind_speed_factor = 1; #default wind_speed_factor
-
-  # if(defined($attr{$hash}) &&
-  #   defined($attr{$hash}{"changeModelTypeTo"}) &&
-  #   !($attr{$hash}{"changeModelTypeTo"} eq "")) {
-  #     $model = $attr{$hash}{"changeModelTypeTo"};
-  #   }
-
-  #$model2 = AttrVal($defs{$d}{NAME}, "changeModelTypeTo", 0);
-  $model = uc(AttrVal($name, "changeModelTypeTo", 0));
-
-  Log3 $name, 5, "$name: model (1) used is WH$model";
-
-    if($model == 0) {
-      # default behaviour
-      $wind_speed_factor = 1;
-      $rain_cup_count = 1;
-    }
-    elsif($model == 24) {
-      $wind_speed_factor = 1.12;
-      $rain_cup_count = 0.3;
-    }
-    elsif($model == 65) {
-      $wind_speed_factor = 0.51;
-      $rain_cup_count = 0.254;
-    }
-
-    Log3 $name, 5, "$name: wind_speed_factor used is $wind_speed_factor";
-    Log3 $name, 5, "$name: rain_cup_count used is $rain_cup_count";
 
   if( $msg =~ m/^OK 9/ ) {
     # Temperature sensor - Format:
@@ -347,17 +318,17 @@ sub LaCrosse_Parse($$) {
     }
 
     if($bytes[5] != 0xFF) {
-      $rain = ($bytes[5]*256 + $bytes[6]) * $rain_factor * $rain_cup_count;
+      $rain = ($bytes[5]*256 + $bytes[6]) * $rain_factor;
     }
 
     if($bytes[7] != 0xFF) {
       $windDirection = ($bytes[7]*256 + $bytes[8]) / 10;
     }
     if($bytes[9] != 0xFF) {
-      $windSpeed = ($bytes[9] * 256 + $bytes[10]) / 10 * $wind_speed_factor;
+      $windSpeed = ($bytes[9] * 256 + $bytes[10]) / 10;
     }
     if($bytes[11] != 0xFF) {
-      $windGust = ($bytes[11] * 256 + $bytes[12]) / 10 * $wind_speed_factor;
+      $windGust = ($bytes[11] * 256 + $bytes[12]) / 10;
     }
     
     if($typeNumber != 6)
@@ -423,8 +394,44 @@ sub LaCrosse_Parse($$) {
   my $rhash = $modules{LaCrosse}{defptr}{$raddr};
   my $rname = $rhash?$rhash->{NAME}:$raddr;
 
-  $model = $rhash->{model};
-  Log3 $name, 5, "$name: model (2) used is WH$model";
+  my $model = AttrVal($rname, "changeModelTypeTo", "default");
+  if(!($model eq "default")) {
+    Log3 $rname, 5, "$rname: model used is $model";
+  }
+
+  if($model eq "default") {
+    # default behaviour
+    $wind_speed_factor = 1;
+    $rain_cup_factor = 1;
+  }
+  elsif($model eq "WH24A") {
+    $wind_speed_factor = 1.12;
+    $rain_cup_factor = 0.3;
+  }
+  elsif($model eq "WH65B") {
+    $wind_speed_factor = 0.51;
+    $rain_cup_factor = 0.254;
+  }
+  else {      
+    Log3 $rname, 3, "$rname: AttrVal ($model) for changeModelTypeTo is unknown";  
+    # default behaviour
+    $wind_speed_factor = 1;
+    $rain_cup_factor = 1;
+  }
+
+  Log3 $rname, 5, "$rname: wind_speed_factor used is $wind_speed_factor";
+  Log3 $rname, 5, "$rname: rain_cup_count used is $rain_cup_factor";
+
+  if($bytes[5] != 0xFF) {
+    $rain = $rain * $rain_cup_factor;
+  }
+
+  if($bytes[9] != 0xFF) {
+    $windSpeed = $windSpeed * $wind_speed_factor;
+  }
+  if($bytes[11] != 0xFF) {
+    $windGust = $windGust * $wind_speed_factor;
+  }
 
   return "" if( IsIgnored($rname) );
 
