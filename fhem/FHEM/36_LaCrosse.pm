@@ -374,11 +374,14 @@ sub LaCrosse_Parse($$) {
         @uvi_upper = (432, 851, 1210, 1570, 2017, 2450, 2761, 3100, 3512, 3918, 4277, 4650, 5029);
         $uv_index = 0;
         $uvi = $uv_index;
-        while (($uv_index < 13) && (@uvi_upper[$uv_index] < $uv)){          
+        while (($uv_index < 13) && ($uvi_upper[$uv_index] < $uv)){          
           $uvi = $uv_index;
           ++$uv_index;
         }
+        $uv_index = $uv;        
     	}
+
+
          
 	    if(!($bytes[15] == 0xFF)) {
 	      $lux = ($bytes[15] * 256 * 256 + $bytes[16] * 256 + $bytes[17])/10;
