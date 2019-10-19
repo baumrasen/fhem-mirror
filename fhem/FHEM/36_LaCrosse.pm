@@ -26,6 +26,10 @@ sub LaCrosse_Initialize($) {
     ." ignore:1,0"
     ." doAverage:1,0"
     ." doDewpoint:1,0"
+    ." doWindDirAverage:1,0"
+    ." WindDirAverageTime"
+    ." WindDirAverageMinSpeed"
+    ." WindDirAverageDecay"
     ." changeModelTypeTo"
     ." filterThreshold"
     ." resolution"
@@ -164,6 +168,139 @@ sub LaCrosse_Set($@) {
   return undef;
 }
 
+sub SD_WS09_WindDirAverage($$$){
+    ###############################################################################
+    #  sub copied from 14_SD_WS09.pm
+    #  übernommen von SabineT https://forum.fhem.de/index.php/topic,75225.msg669950.html#msg669950
+    #  WindDirAverage
+    #       z.B.: myWindDirAverage('WH1080','windSpeed','windDirectionDegree',900,0.75,0.5)
+    #       avtime ist optional, default ist 600 s    Zeitspanne, die berücksichtig werden soll
+    #       decay ist optional, default ist 1         Parameter, um ältere Werte geringer zu gewichten
+    #       minspeed ist optional, default ist 0 m/s
+    #
+    #  Als Ergebnis wird die Windrichtung zurück geliefert, die aus dem aktuellen und
+    #  vergangenen Werten über eine Art exponentiellen Mittelwert berechnet werden.
+    #  Dabei wird zusätzlich die jeweilige Windgeschwindigkeit mit berücksichtigt (höhere Geschwindigkeit
+    #  bedeutet höhere Gewichtung).
+    #
+    #  decay: 1 -> alle Werte werden gleich gewichtet
+    #         0 -> nur der aktuelle Wert wird verwendet.
+    #         in der Praxis wird man Werte so um 0.75 nehmen
+    #
+    #  minspeed: da bei sehr geringer Windgeschwindigkeit die Windrichtung üblicherweise nicht
+    #         eindeutig ist, kann mit minspeed ein Schwellwert angegeben werden
+    #         Ist die (gewichtetete) mittlere Geschwindigkeit < minspeed wird undef zurück geliefert
+    #
+    ###############################################################################
+
+     my ($hash, $ws, $wd) = @_;
+     my $name = $hash->{NAME};
+     Log3 $hash, 4, "SD_WS09_WindDirAverage --- OK ----" ;
+     my $rc = eval
+     {
+      require Math::Trig;
+      Math::Trig->import();
+      1;
+     };
+
+     if($rc) # test ob  Math::Trig geladen wurde
+     {
+         Log3 $hash, 4, "SD_WS09_WindDirAverage Math::Trig:OK" ;
+     }else
+     {
+         Log3 $hash, 1, "SD_WS09_WindDirAverage Math::Trig:fehlt : cpan install Math::Trig" ;
+         return "";
+     }
+       
+       my $avtime = AttrVal($name,'WindDirAverageTime',0);
+       my $decay = AttrVal($name,'WindDirAverageDecay',0);
+       my $minspeed = AttrVal($name,'WindDirAverageMinSpeed',0);
+       
+       # default Werte für die optionalen Parameter, falls nicht beim Aufruf mit angegeben
+       $avtime = 600 if (!(defined $avtime) || $avtime == 0 );
+       $decay = 1 if (!(defined $decay));
+       $decay = 1 if ($decay > 1); # darf nicht >1 sein
+       $decay = 0 if ($decay < 0); # darf nicht <0 sein
+       $minspeed = 0 if (!(defined $minspeed));
+       
+       $wd = deg2rad($wd);
+       my $ctime = time;
+       my $time = FmtDateTime($ctime);
+       my @new = ($ws,$wd,$time);
+
+       Log3 $hash, 4,"SD_WS09_WindDirAverage_01 $name :Speed=".$ws." DirR=".round($wd,2)." Time=".$time;
+       Log3 $hash, 4,"SD_WS09_WindDirAverage_02 $name :avtime=".$avtime." decay=".$decay." minspeed=".$minspeed;
+
+       my $num;
+       my $arr;
+      
+      #-- initialize if requested
+      if( ($avtime eq "-1") ){
+        $hash->{helper}{history}=undef;
+      }
+      
+      #-- test for existence
+      if(!$hash->{helper}{history}){
+       Log3 $hash, 4,"SD_WS09_WindDirAverage_03 $name :ARRAY CREATED";
+       push(@{$hash->{helper}{history}},\@new);
+       $num = 1;
+       $arr=\@{$hash->{helper}{history}};
+      } else {
+       $num = int(@{$hash->{helper}{history}});
+       $arr=\@{$hash->{helper}{history}};
+       my $stime = time_str2num($arr->[0][2]);       # Zeitpunkt des ältesten Eintrags
+       my $ltime = time_str2num($arr->[$num-1][2]);  # Zeitpunkt des letzten Eintrags
+       Log3 $hash,4,"SD_WS09_WindDirAverage_04 $name :Speed=".$ws." Dir=".round($wd,2)." Time=".$time." minspeed=".$minspeed." ctime=".$ctime." ltime=".$ltime." stime=".$stime." num=".$num;
+
+       if((($ctime - $ltime) > 10) || ($num == 0)) {
+        if(($num < 25) && (($ctime-$stime) < $avtime)){
+         Log3 $hash,4,"SD_WS09_WindDirAverage_05 $name :Speed=".$ws." Dir=".round($wd,2)." Time=".$time." minspeed=".$minspeed." num=".$num;
+         push(@{$hash->{helper}{history}},\@new);
+        } else {
+          shift(@{$hash->{helper}{history}});
+          push(@{$hash->{helper}{history}},\@new);
+          Log3 $hash,4,"SD_WS09_WindDirAverage_06 $name :Speed=".$ws." Dir=".round($wd,2)." Time=".$time." minspeed=".$minspeed." num=".$num;
+         }
+       } else {
+          return undef;
+       }
+     }
+  #-- output and average
+  my ($anz, $sanz) = 0;
+  $num = int(@{$hash->{helper}{history}});
+  my ($sumSin, $sumCos, $sumSpeed, $age, $maxage, $weight) = 0;
+  for(my $i=0; $i<$num; $i++){
+    ($ws, $wd, $time) = @{ $arr->[$i] };
+    $age = $ctime - time_str2num($time);
+    if (($time eq "") || ($age > $avtime)) {
+      #-- zu alte Einträge entfernen
+      Log3 $hash,4,"SD_WS09_WindDirAverage_07 $name i=".$i." Speed=".round($ws,2)." Dir=".round($wd,2)." Time=".substr($time,11)." ctime=".$ctime." akt.=".time_str2num($time);
+      shift(@{$hash->{helper}{history}});
+      $i--;
+      $num--;
+    } else {
+      #-- Werte aufsummieren, Windrichtung gewichtet über Geschwindigkeit und decay/"alter"
+      $weight = $decay ** ($age / $avtime);
+      #-- für die Mittelwertsbildung der Geschwindigkeit wird nur ein 10tel von avtime genommen
+      if ($age < ($avtime / 10)) {
+        $sumSpeed += $ws * $weight if ($age < ($avtime / 10));
+        $sanz++;
+      }
+      $sumSin += sin($wd) * $ws * $weight;
+      $sumCos += cos($wd) * $ws * $weight;
+      $anz++;
+      Log3 $hash,4,"SD_WS09_WindDirAverage_08 $name i=".$i." Speed=".round($ws,2)." Dir=".round($wd,2)." Time=".substr($time,11)." vec=".round($sumSin,2)."/".round($sumCos,2)." age=".$age." ".round($weight,2);
+    }
+  }
+  my $average = int((rad2deg(atan2($sumSin, $sumCos)) + 360) % 360);
+  Log3 $hash,4,"SD_WS09_WindDirAverage_09 $name Mittelwert über $anz Werte ist $average, avspeed=".round($sumSpeed/$num,1) if ($num > 0);
+  #-- undef zurückliefern, wenn die durchschnittliche Geschwindigkeit zu gering oder gar keine Werte verfügbar
+  return undef if (($anz == 0) || ($sanz == 0));
+  return undef if (($sumSpeed / $sanz) < $minspeed);
+  Log3 $hash,4,"SD_WS09_WindDirAverage_END $name Mittelwert=$average";
+  return $average;
+}
+ 
 #-----------------------------------#
 sub LaCrosse_Parse($$) {
   my ($hash, $msg) = @_;
@@ -521,6 +658,7 @@ sub LaCrosse_Parse($$) {
 
     my $previousT = $temperature;
     my $previousH = $humidity;
+    my $windDirectionAverage;
 
     # Check filterThreshold
     if(!defined($rhash->{"previousT$channel"})
@@ -636,6 +774,12 @@ sub LaCrosse_Parse($$) {
       elsif ($windDirection > 326.2 && $windDirection <= 348.7) { $windDirectionText = "NNW"; };
 
       readingsBulkUpdate($rhash, "windDirectionText", $windDirectionText );
+
+      # Calculate average
+      if ((AttrVal( $rname, "doWindDirAverage", 0 ) && $windSpeed != 0xFFFF) && $windDirection != 0xFFFF) {
+        $windDirectionAverage = SD_WS09_WindDirAverage($hash, $windSpeed, $windDirection);
+        readingsBulkUpdate($rhash, "windDirectionAverage", $windDirectionAverage );
+      }
     }
 
     if ($typeNumber != 6 && $typeNumber > 1 && $pressure != 0xFFFF) {
@@ -680,7 +824,6 @@ sub LaCrosse_Parse($$) {
 
   return @list;
 }
-
 
 1;
 
@@ -747,7 +890,25 @@ sub LaCrosse_Parse($$) {
     <li>doAverage<br>
       use an average of the last 4 values for temperature and humidity readings</li>
     <li>doDewpoint<br>
-      calculate dewpoint</li>
+      calculate dewpoint</li><br>
+
+    <li>doWindDirAverage<br>
+      calculate an average of the winddirection</li>
+    <li>WindDirAverageTime<br>
+      default is 600s, time span to be considered for the calculation
+    </li><br>
+    <li>WindDirAverageMinSpeed<br>
+      since the wind direction is usually not clear at very low wind speeds,
+      minspeed can be used to specify a threshold value. 
+    <br>The (weighted) mean velocity < minspeed is returned undef
+    </li><br>
+    
+    <li>WindDirAverageDecay<br>
+       1 -> all values ​​are weighted equally  <br>
+       0 -> only the current value is used.   <br>
+       in practice, you will take values ​​around 0.75 
+    </li><br>
+
     <li>filterThreshold<br>
       if the difference between the current and previous temperature is greater than filterThreshold degrees
       the readings for this channel are not updated. the default is 10.</li>
