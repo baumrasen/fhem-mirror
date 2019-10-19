@@ -890,25 +890,22 @@ sub LaCrosse_Parse($$) {
     <li>doAverage<br>
       use an average of the last 4 values for temperature and humidity readings</li>
     <li>doDewpoint<br>
-      calculate dewpoint</li><br>
-
+      calculate dewpoint</li>
     <li>doWindDirAverage<br>
       calculate an average of the winddirection</li>
     <li>WindDirAverageTime<br>
       default is 600s, time span to be considered for the calculation
-    </li><br>
+    </li>
     <li>WindDirAverageMinSpeed<br>
       since the wind direction is usually not clear at very low wind speeds,
       minspeed can be used to specify a threshold value. 
     <br>The (weighted) mean velocity < minspeed is returned undef
-    </li><br>
-    
+    </li>    
     <li>WindDirAverageDecay<br>
        1 -> all values ​​are weighted equally  <br>
        0 -> only the current value is used.   <br>
        in practice, you will take values ​​around 0.75 
-    </li><br>
-
+    </li>
     <li>filterThreshold<br>
       if the difference between the current and previous temperature is greater than filterThreshold degrees
       the readings for this channel are not updated. the default is 10.</li>
